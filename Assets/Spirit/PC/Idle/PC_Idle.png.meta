@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: a8062f21bcbcc7a4da7492b5f87dcbc1
+guid: 9b347b05538a48e44b96e0da7daaaa54
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -97,7 +97,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: PC_U_0
+      name: PC_Idle_0
       rect:
         serializedVersion: 2
         x: 0
@@ -112,14 +112,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: d91007053aa4bea4b90532f5fcc788c7
-      internalID: -1659587398
+      spriteID: cca89c42250cac846aaefdc8199d3735
+      internalID: -1624134591
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PC_U_1
+      name: PC_Idle_1
       rect:
         serializedVersion: 2
         x: 16
@@ -134,14 +134,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: ea9655c23d6e9f943934097f92f338b8
-      internalID: 837724163
+      spriteID: ab914f407256bf54283fff1aae633079
+      internalID: -144734627
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PC_U_2
+      name: PC_Idle_2
       rect:
         serializedVersion: 2
         x: 32
@@ -156,14 +156,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 0edb0590dcfac0a4ea231e219591bb9b
-      internalID: -1991069086
+      spriteID: 1d8857f1e4940b147b44d7bb4a2f6f78
+      internalID: -880454748
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PC_U_3
+      name: PC_Idle_3
       rect:
         serializedVersion: 2
         x: 48
@@ -178,14 +178,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 2a3a71fc539168e49b7e827339bbf78d
-      internalID: 854825761
+      spriteID: 8cab338d4904a89499f83c56b239e7fe
+      internalID: 1097246650
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PC_U_4
+      name: PC_Idle_4
       rect:
         serializedVersion: 2
         x: 64
@@ -200,14 +200,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: c2514cf0c31e93f428daba0e29542d01
-      internalID: 248183560
+      spriteID: 940ff519070b9ce4b9c70fbf3689dfeb
+      internalID: -146437455
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PC_U_5
+      name: PC_Idle_5
       rect:
         serializedVersion: 2
         x: 80
@@ -222,14 +222,14 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 8ef30e2b3e0a6f8468b1c9fa84f32afe
-      internalID: 979017181
+      spriteID: 0128ca816268acc4c909a654e9208701
+      internalID: -784410140
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: PC_U_6
+      name: PC_Idle_6
       rect:
         serializedVersion: 2
         x: 96
@@ -244,30 +244,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 877ca41ab9b316c44a6162834a730a9d
-      internalID: 1014784387
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: PC_U_7
-      rect:
-        serializedVersion: 2
-        x: 112
-        y: 0
-        width: 16
-        height: 16
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: b21cc5329eabcdc4ea4386cce2b017f4
-      internalID: -1098232434
+      spriteID: a80caa2a4940c4c4e81ed148334fff83
+      internalID: -779854877
       vertices: []
       indices: 
       edges: []
@@ -276,7 +254,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: d18232192879a5846861d7cf83c719ec
+    spriteID: 8f0b19edb7379774daaed3f1e9e851e4
     internalID: 0
     vertices: []
     indices: 
@@ -288,14 +266,13 @@ TextureImporter:
       - key: SpriteEditor.SliceSettings
         value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":16.0,"y":16.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":1,"keepEmptyRects":false,"isAlternate":false}'
     nameFileIdTable:
-      PC_U_0: -1659587398
-      PC_U_1: 837724163
-      PC_U_2: -1991069086
-      PC_U_3: 854825761
-      PC_U_4: 248183560
-      PC_U_5: 979017181
-      PC_U_6: 1014784387
-      PC_U_7: -1098232434
+      PC_Idle_0: -1624134591
+      PC_Idle_1: -144734627
+      PC_Idle_2: -880454748
+      PC_Idle_3: 1097246650
+      PC_Idle_4: -146437455
+      PC_Idle_5: -784410140
+      PC_Idle_6: -779854877
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
