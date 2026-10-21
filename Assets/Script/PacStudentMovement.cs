@@ -12,6 +12,11 @@ public class PacStudentMovement : MonoBehaviour
 
     public float moveSpeed = 3f;
 
+    [Header("Audio")]
+    [Tooltip("Plays the movement sound on loop while PacStudent is moving")]
+    public AudioSource moveAudio;
+    public AudioClip moveClip;
+
     private Animator animator;
     private int currentTargetIndex = 0;
     private float moveProgress = 0f;
@@ -22,10 +27,19 @@ public class PacStudentMovement : MonoBehaviour
     void Start()
     {
         animator = GetComponent<Animator>();
-        
+
         transform.position = waypoints[0];
         currentTargetIndex = 1;
         SetNewTarget();
+
+        // PacStudent never stops in this scene, so the movement sound loops the whole time
+        if (moveAudio == null) moveAudio = GetComponent<AudioSource>();
+        if (moveAudio != null)
+        {
+            if (moveClip != null) moveAudio.clip = moveClip;
+            moveAudio.loop = true;
+            if (moveAudio.clip != null) moveAudio.Play();
+        }
     }
 
     void Update()
@@ -57,6 +71,7 @@ public class PacStudentMovement : MonoBehaviour
 
     private void UpdateAnimationDirection()
     {
+        if (animator == null) return;
         Vector3 direction = (targetPos - startPos).normalized;
         
         if (Mathf.Abs(direction.x) > Mathf.Abs(direction.y))

@@ -124,8 +124,8 @@ public class LevelGenerator : MonoBehaviour
     [Header("Mirroring")]
     [Tooltip("Mirror the top-left quarter into the full map")]
     [SerializeField] private bool mirrorMap = true;
-    [Tooltip("Duplicate the last row when mirroring vertically")]
-    [SerializeField] private bool duplicateMiddleRow = true;
+    [Tooltip("Duplicate the last row when mirroring vertically. Keep this OFF: the last row of levelMap is the middle row of the level")]
+    [SerializeField] private bool duplicateMiddleRow = false;
     [Tooltip("Duplicate the last column when mirroring horizontally. In the original Pac-Man it is duplicated, making the middle wall and ghost gate two tiles wide")]
     [SerializeField] private bool duplicateMiddleColumn = true;
 
@@ -137,6 +137,12 @@ public class LevelGenerator : MonoBehaviour
     [Tooltip("Inner wall shape fix: straight walls (4) use one axis and corners (3) use two sides, so adjacent parallel walls are not joined by mistake")]
     [SerializeField] private bool smartRiverShape = true;
     [SerializeField] private bool generateOnStart = true;
+    [Tooltip("The hand-made level. It is deleted when the generated level is built")]
+    [SerializeField] private GameObject manualMap;
+
+    [Header("Sorting")]
+    [Tooltip("Sorting order for pellets and power pellets, so they draw above the road")]
+    [SerializeField] private int itemSortingOrder = 2;
 
     // ===================== Internal data =====================
     private int[,] map;         // Full map after mirroring
@@ -155,7 +161,13 @@ public class LevelGenerator : MonoBehaviour
 
     private void Start()
     {
-        if (generateOnStart) Generate();
+        if (!generateOnStart) return;
+
+        // The hand-made level is replaced by the generated one
+        if (manualMap == null) manualMap = GameObject.Find("ManualMap");
+        if (manualMap != null) Destroy(manualMap);
+
+        Generate();
     }
 
     [ContextMenu("Generate Map")]
@@ -248,12 +260,12 @@ public class LevelGenerator : MonoBehaviour
 
             case Pellet:
                 SpawnRoad(r, c);
-                Spawn(coin, "Others / Coin", r, c, itemOffset);
+                SetItemSorting(Spawn(coin, "Others / Coin", r, c, itemOffset));
                 break;
 
             case PowerPellet:
                 SpawnRoad(r, c);
-                Spawn(sword, "Others / Sword", r, c, itemOffset);
+                SetItemSorting(Spawn(sword, "Others / Sword", r, c, itemOffset));
                 break;
 
             case OuterCorner:
@@ -316,11 +328,32 @@ public class LevelGenerator : MonoBehaviour
                 h = c < cols / 2 ? DirE : DirW;
             }
 
-            // Extends down and right = top-left ┌ = WallNW; the others follow the same idea
-            if (v == DirS && h == DirE) Spawn(outerWall.WallNW, "Outer wall / WallNW ┌", r, c);
-            else if (v == DirS && h == DirW) Spawn(outerWall.WallNE, "Outer wall / WallNE ┐", r, c);
-            else if (v == DirN && h == DirE) Spawn(outerWall.WallSW, "Outer wall / WallSW └", r, c);
-            else Spawn(outerWall.WallSE, "Outer wall / WallSE ┘", r, c);
+            // Is the walkable area inside the bend (the diagonal between the two arms) or outside it?
+            bool inside = WalkableAt(r + DRow[v], c + DCol[h]);
+
+            // WallNW / WallNE art: dirt strip down one side (walkable area inside the bend).
+            // WallSW / WallSE art: dirt fill with a notch (walkable area outside the bend).
+            // The art only exists for one vertical orientation, so the other one is flipped upside down.
+            GameObject prefab;
+            bool flipY;
+            if (inside)
+            {
+                prefab = h == DirE ? outerWall.WallNW : outerWall.WallNE;
+                flipY = v == DirN;
+            }
+            else
+            {
+                prefab = h == DirE ? outerWall.WallSW : outerWall.WallSE;
+                flipY = v == DirS;
+            }
+
+            string slot = "Outer wall / corner " + DirChar[v] + DirChar[h] + (inside ? " inside" : " outside");
+            GameObject corner = Spawn(prefab, slot, r, c);
+            if (corner != null && flipY)
+            {
+                Vector3 s = corner.transform.localScale;
+                corner.transform.localScale = new Vector3(s.x, -s.y, s.z);
+            }
             return;
         }
 
@@ -503,20 +536,29 @@ public class LevelGenerator : MonoBehaviour
         return pos + mapOffset;
     }
 
-    private void Spawn(GameObject prefab, string slotName, int r, int c, Vector3 extraOffset = default)
+    private GameObject Spawn(GameObject prefab, string slotName, int r, int c, Vector3 extraOffset = default)
     {
         if (checkOnly) neededSlots.Add(slotName);
 
         if (prefab == null)
         {
             emptySlots.Add(slotName);
-            return;
+            return null;
         }
 
-        if (checkOnly) return;
+        if (checkOnly) return null;
 
         GameObject go = Instantiate(prefab, mapRoot);
         go.transform.localPosition = CellToLocal(r, c) + extraOffset;
         go.name = $"{prefab.name} ({r},{c})";
+        return go;
+    }
+
+    /// <summary>Pellets and power pellets draw above the road tiles.</summary>
+    private void SetItemSorting(GameObject go)
+    {
+        if (go == null) return;
+        foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>())
+            sr.sortingOrder = itemSortingOrder;
     }
 }
