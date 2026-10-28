@@ -3,15 +3,11 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
-/// <summary>
-/// Builds the full map by mirroring the fixed levelMap array (the top-left quarter), then spawns it.
-/// Drag the prefab for each combination into its matching slot in the Inspector.
-/// </summary>
+// 关卡生成器：根据 levelMap 数组生成墙、路、豆子，并提供格子坐标查询给其他脚本
 public class LevelGenerator : MonoBehaviour
 {
-    // ===================== Slot definitions =====================
 
-    /// <summary>Direction-combination slots shared by Road and River. Letters are the connected sides: N up, S down, E right, W left.</summary>
+    // 一组按方向区分的预制体（直墙 / 拐角）
     [Serializable]
     public class DirectionalPrefabs
     {
@@ -54,7 +50,6 @@ public class LevelGenerator : MonoBehaviour
         }
     }
 
-    /// <summary>Outer walls: letters show which side / corner of the map (or walkable area) the wall is on.</summary>
     [Serializable]
     public class OuterWallPrefabs
     {
@@ -71,7 +66,7 @@ public class LevelGenerator : MonoBehaviour
         [Tooltip("┘ Bottom-right corner, joins the bottom and right walls")] public GameObject WallSE;
     }
 
-    // ===================== Fixed map array (top-left quarter) =====================
+    // 原始地图数据（开启 mirrorMap 时会镜像成完整地图）
     private readonly int[,] levelMap =
     {
         {1,2,2,2,2,2,2,2,2,2,2,2,2,7},
@@ -91,10 +86,10 @@ public class LevelGenerator : MonoBehaviour
         {0,0,0,0,0,0,5,0,0,0,4,0,0,0},
     };
 
+    // 地图里每个数字代表的含义
     private const int Empty = 0, OuterCorner = 1, OuterWall = 2, InnerCorner = 3, InnerWall = 4,
                       Pellet = 5, PowerPellet = 6, TJunction = 7, GhostGate = 8;
 
-    // ===================== Inspector slots =====================
     [Header("Road (map values 0 / 5 / 6)")]
     public DirectionalPrefabs road = new DirectionalPrefabs();
 
@@ -124,8 +119,8 @@ public class LevelGenerator : MonoBehaviour
     [Header("Mirroring")]
     [Tooltip("Mirror the top-left quarter into the full map")]
     [SerializeField] private bool mirrorMap = true;
-    [Tooltip("Duplicate the last row when mirroring vertically")]
-    [SerializeField] private bool duplicateMiddleRow = true;
+    [Tooltip("Duplicate the last row when mirroring vertically. Keep this OFF: the last row of levelMap is the middle row of the level")]
+    [SerializeField] private bool duplicateMiddleRow = false;
     [Tooltip("Duplicate the last column when mirroring horizontally. In the original Pac-Man it is duplicated, making the middle wall and ghost gate two tiles wide")]
     [SerializeField] private bool duplicateMiddleColumn = true;
 
@@ -138,72 +133,92 @@ public class LevelGenerator : MonoBehaviour
     [SerializeField] private bool smartRiverShape = true;
     [SerializeField] private bool generateOnStart = true;
 
-    // ===================== Internal data =====================
+    [Header("Sorting")]
+    [SerializeField] private int itemSortingOrder = 2;
+
+    // 运行时数据
     private int[,] map;         // Full map after mirroring
     private int rows, cols;
-    private bool[,] walkable;   // Walkable cells inside the outer walls
-    private Transform mapRoot;
-    private bool checkOnly;     // Only check slots, do not spawn
-    private readonly SortedSet<string> neededSlots = new SortedSet<string>();
-    private readonly SortedSet<string> emptySlots = new SortedSet<string>();
+    private bool[,] wk;   // Walkable cells inside the outer walls
+    private Transform root2;
+    private bool flag;     // Only check slots, do not spawn
+    private readonly SortedSet<string> s1 = new SortedSet<string>();
+    private readonly SortedSet<string> s2 = new SortedSet<string>();
 
     // Direction order is always N S E W
+    // 方向：上 下 右 左
     private const int DirN = 0, DirS = 1, DirE = 2, DirW = 3;
     private static readonly int[] DRow = { -1, 1, 0, 0 };
     private static readonly int[] DCol = { 0, 0, 1, -1 };
     private static readonly char[] DirChar = { 'N', 'S', 'E', 'W' };
 
-    private void Start()
+    public static LevelGenerator Instance { get; private set; }
+
+    // 初始化单例，开局生成地图
+    private void Awake()
     {
-        if (generateOnStart) Generate();
+        Instance = this;
+
+        // The hand-made map is replaced by the generated one
+        GameObject manual = GameObject.Find("ManualMap");
+        if (manual != null) Destroy(manual);
+
+        if (generateOnStart)
+        {
+            // Hide the old copy right away so nothing finds its pellets before Destroy() runs
+            Transform old = transform.Find("GeneratedMap");
+            if (old != null) old.gameObject.SetActive(false);
+            Generate();
+        }
+        else
+        {
+            EnsureInit();
+        }
     }
 
     [ContextMenu("Generate Map")]
+    // 生成整张地图
     public void Generate()
     {
-        checkOnly = false;
-        emptySlots.Clear();
+        flag = false;
+        s2.Clear();
         Init();
         PrepareRoot();
         BuildAll();
 
-        if (emptySlots.Count > 0)
-            Debug.LogWarning("[LevelGenerator] These slots have no prefab assigned; their cells were skipped:\n" + string.Join("\n", emptySlots));
+        if (s2.Count > 0)
+            Debug.LogWarning("[LevelGenerator] These slots have no prefab assigned; their cells were skipped:\n" + string.Join("\n", s2));
     }
 
-    /// <summary>Logs which slots this map uses and which are still empty.</summary>
     [ContextMenu("Check Prefab Slots")]
+    // 只检查预制体有没有拖全，不生成
     public void CheckPrefabSlots()
     {
-        checkOnly = true;
-        neededSlots.Clear();
-        emptySlots.Clear();
+        flag = true;
+        s1.Clear();
+        s2.Clear();
         Init();
         BuildAll();
-        checkOnly = false;
+        flag = false;
 
-        Debug.Log("[LevelGenerator] Slots used by this map:\n" + string.Join("\n", neededSlots));
-        if (emptySlots.Count > 0)
-            Debug.LogWarning("[LevelGenerator] Empty slots:\n" + string.Join("\n", emptySlots));
+        Debug.Log("[LevelGenerator] Slots used by this map:\n" + string.Join("\n", s1));
+        if (s2.Count > 0)
+            Debug.LogWarning("[LevelGenerator] Empty slots:\n" + string.Join("\n", s2));
         else
             Debug.Log("[LevelGenerator] All used slots are assigned.");
     }
 
+    // 准备地图数据和可走区域
     private void Init()
     {
         map = BuildFullMap();
         rows = map.GetLength(0);
         cols = map.GetLength(1);
         FloodFillWalkable();
+        BuildGameplayGrid();
     }
 
-    // ===================== Build the full map by mirroring =====================
-    /// <summary>
-    /// levelMap is the top-left quarter. It is mirrored horizontally to get the top half,
-    /// then vertically to get the bottom half, so the other three quarters are flips of the first.
-    /// All checks run on the full map afterwards, so wall, road and corner directions are
-    /// re-evaluated automatically and prefabs never need to be flipped.
-    /// </summary>
+    // 把原始地图镜像成完整地图
     private int[,] BuildFullMap()
     {
         int qRows = levelMap.GetLength(0);
@@ -228,6 +243,7 @@ public class LevelGenerator : MonoBehaviour
         return full;
     }
 
+    // 逐格生成
     private void BuildAll()
     {
         for (int r = 0; r < rows; r++)
@@ -235,25 +251,25 @@ public class LevelGenerator : MonoBehaviour
                 BuildCell(r, c);
     }
 
-    // ===================== Per-cell handling =====================
+    // 根据格子类型生成对应物体
     private void BuildCell(int r, int c)
     {
         int v = map[r, c];
         switch (v)
         {
             case Empty:
-                if (walkable[r, c]) SpawnRoad(r, c);
+                if (wk[r, c]) SpawnRoad(r, c);
                 else Spawn(wall, "Others / Wall", r, c);
                 break;
 
             case Pellet:
                 SpawnRoad(r, c);
-                Spawn(coin, "Others / Coin", r, c, itemOffset);
+                SetupItem(Spawn(coin, "Others / Coin", r, c, itemOffset), false);
                 break;
 
             case PowerPellet:
                 SpawnRoad(r, c);
-                Spawn(sword, "Others / Sword", r, c, itemOffset);
+                SetupItem(Spawn(sword, "Others / Sword", r, c, itemOffset), true);
                 break;
 
             case OuterCorner:
@@ -273,12 +289,14 @@ public class LevelGenerator : MonoBehaviour
         }
     }
 
+    // 生成路面
     private void SpawnRoad(int r, int c)
     {
         string key = Suffix(GetLinks(r, c, IsRoad));
         Spawn(road.Get(key), "Road / " + key, r, c);
     }
 
+    // 生成内墙（河道）
     private void SpawnRiver(int r, int c, bool isCorner)
     {
         bool[] links = GetLinks(r, c, IsRiver);
@@ -303,6 +321,7 @@ public class LevelGenerator : MonoBehaviour
         Spawn(river.Get(key), "River / " + key, r, c);
     }
 
+    // 生成外墙
     private void SpawnOuterWall(int r, int c, bool isCorner)
     {
         bool[] links = GetLinks(r, c, IsOuter);
@@ -316,11 +335,32 @@ public class LevelGenerator : MonoBehaviour
                 h = c < cols / 2 ? DirE : DirW;
             }
 
-            // Extends down and right = top-left ┌ = WallNW; the others follow the same idea
-            if (v == DirS && h == DirE) Spawn(outerWall.WallNW, "Outer wall / WallNW ┌", r, c);
-            else if (v == DirS && h == DirW) Spawn(outerWall.WallNE, "Outer wall / WallNE ┐", r, c);
-            else if (v == DirN && h == DirE) Spawn(outerWall.WallSW, "Outer wall / WallSW └", r, c);
-            else Spawn(outerWall.WallSE, "Outer wall / WallSE ┘", r, c);
+            // Is the wk area inside the bend (the diagonal between the two arms) or outside it?
+            bool inside = WalkableAt(r + DRow[v], c + DCol[h]);
+
+            // WallNW / WallNE art: dirt strip down one side (walkable area inside the bend).
+            // WallSW / WallSE art: dirt fill with a notch (walkable area outside the bend).
+            // The art only exists for one vertical orientation, so the other one is flipped upside down.
+            GameObject prefab;
+            bool flipY;
+            if (inside)
+            {
+                prefab = h == DirE ? outerWall.WallNW : outerWall.WallNE;
+                flipY = v == DirN;
+            }
+            else
+            {
+                prefab = h == DirE ? outerWall.WallSW : outerWall.WallSE;
+                flipY = v == DirS;
+            }
+
+            string slot = "Outer wall / corner " + DirChar[v] + DirChar[h] + (inside ? " inside" : " outside");
+            GameObject corner = Spawn(prefab, slot, r, c);
+            if (corner != null && flipY)
+            {
+                Vector3 s = corner.transform.localScale;
+                corner.transform.localScale = new Vector3(s.x, -s.y, s.z);
+            }
             return;
         }
 
@@ -330,7 +370,7 @@ public class LevelGenerator : MonoBehaviour
 
         if (axis == "EW")
         {
-            // Horizontal wall: walkable area below -> top-side WallN; above -> bottom-side WallS
+            // Horizontal wall: wk area below -> top-side WallN; above -> bottom-side WallS
             bool southIn = WalkableAt(r + 1, c), northIn = WalkableAt(r - 1, c);
             bool isNorth = (southIn != northIn) ? southIn : r < rows / 2;
             if (isNorth) Spawn(outerWall.WallN, "Outer wall / WallN ─", r, c);
@@ -338,7 +378,7 @@ public class LevelGenerator : MonoBehaviour
         }
         else
         {
-            // Vertical wall: walkable area to the right -> left-side WallW; to the left -> right-side WallE
+            // Vertical wall: wk area to the right -> left-side WallW; to the left -> right-side WallE
             bool eastIn = WalkableAt(r, c + 1), westIn = WalkableAt(r, c - 1);
             bool isWest = (eastIn != westIn) ? eastIn : c < cols / 2;
             if (isWest) Spawn(outerWall.WallW, "Outer wall / WallW │", r, c);
@@ -346,26 +386,23 @@ public class LevelGenerator : MonoBehaviour
         }
     }
 
-    // ===================== Tell the two kinds of 0 apart (flood fill) =====================
+    // 这个数字能不能走
     private bool IsPassableValue(int v)
     {
         return v == Empty || v == Pellet || v == PowerPellet || (v == GhostGate && gateIsPassable);
     }
 
-    /// <summary>
-    /// Spreads from every pellet (5/6) through 0/5/6(/8). Any 0 that is reached is a walkable 0
-    /// inside the outer walls; any 0 that is not reached is outside the walls (or fully enclosed by walls).
-    /// </summary>
+    // 从有豆子的格子开始洪水填充，算出外墙以内能走的格子
     private void FloodFillWalkable()
     {
-        walkable = new bool[rows, cols];
+        wk = new bool[rows, cols];
         var queue = new Queue<Vector2Int>();
 
         for (int r = 0; r < rows; r++)
             for (int c = 0; c < cols; c++)
                 if (map[r, c] == Pellet || map[r, c] == PowerPellet)
                 {
-                    walkable[r, c] = true;
+                    wk[r, c] = true;
                     queue.Enqueue(new Vector2Int(c, r));
                 }
 
@@ -375,19 +412,19 @@ public class LevelGenerator : MonoBehaviour
             for (int d = 0; d < 4; d++)
             {
                 int nr = p.y + DRow[d], nc = p.x + DCol[d];
-                if (!InBounds(nr, nc) || walkable[nr, nc]) continue;
+                if (!InBounds(nr, nc) || wk[nr, nc]) continue;
                 if (!IsPassableValue(map[nr, nc])) continue;
-                walkable[nr, nc] = true;
+                wk[nr, nc] = true;
                 queue.Enqueue(new Vector2Int(nc, nr));
             }
         }
     }
 
-    // ===================== Connection helpers =====================
+    // ---- 判断格子类型的小工具 ----
     private bool InBounds(int r, int c) => r >= 0 && r < rows && c >= 0 && c < cols;
-    private bool WalkableAt(int r, int c) => InBounds(r, c) && walkable[r, c];
+    private bool WalkableAt(int r, int c) => InBounds(r, c) && wk[r, c];
 
-    private bool IsRoad(int r, int c) => walkable[r, c];
+    private bool IsRoad(int r, int c) => wk[r, c];
 
     private bool IsRiver(int r, int c)
     {
@@ -401,7 +438,7 @@ public class LevelGenerator : MonoBehaviour
         return v == OuterCorner || v == OuterWall || v == TJunction;
     }
 
-    /// <summary>Returns whether each of N S E W connects to a cell of the same kind.</summary>
+    // 看四个方向上哪些格子是同类，用来选墙的形状
     private bool[] GetLinks(int r, int c, Func<int, int, bool> sameKind)
     {
         var links = new bool[4];
@@ -413,6 +450,7 @@ public class LevelGenerator : MonoBehaviour
         return links;
     }
 
+    // 根据连接方向得到预制体名字的后缀
     private static string Suffix(bool[] links)
     {
         var sb = new StringBuilder();
@@ -421,7 +459,6 @@ public class LevelGenerator : MonoBehaviour
         return sb.ToString();
     }
 
-    /// <summary>Straight walls use one axis: more vertical links -> NS, more horizontal links -> EW, tie -> null.</summary>
     private static string PickAxis(bool[] links)
     {
         int ns = (links[DirN] ? 1 : 0) + (links[DirS] ? 1 : 0);
@@ -431,11 +468,6 @@ public class LevelGenerator : MonoBehaviour
         return null;
     }
 
-    /// <summary>
-    /// A corner uses exactly one vertical + horizontal pair. When several pairs fit, prefer the pair whose
-    /// diagonal cell between them is not a wall (the side the corner actually bends toward),
-    /// then the pair whose opposite diagonal is not a wall.
-    /// </summary>
     private bool TryPickCorner(int r, int c, bool[] links, Func<int, int, bool> sameKind,
                                out int vertical, out int horizontal)
     {
@@ -469,7 +501,7 @@ public class LevelGenerator : MonoBehaviour
         return InBounds(r, c) && !sameKind(r, c);
     }
 
-    // ===================== Spawning =====================
+    // 创建放地图物体的父节点
     private void PrepareRoot()
     {
         Transform old = transform.Find("GeneratedMap");
@@ -479,10 +511,11 @@ public class LevelGenerator : MonoBehaviour
             else DestroyImmediate(old.gameObject);
         }
 
-        mapRoot = new GameObject("GeneratedMap").transform;
-        mapRoot.SetParent(transform, false);
+        root2 = new GameObject("GeneratedMap").transform;
+        root2.SetParent(transform, false);
     }
 
+    // 格子坐标转本地坐标
     private Vector3 CellToLocal(int r, int c)
     {
         // Row 0 is at the top, column 0 is at the far left
@@ -503,20 +536,181 @@ public class LevelGenerator : MonoBehaviour
         return pos + mapOffset;
     }
 
-    private void Spawn(GameObject prefab, string slotName, int r, int c, Vector3 extraOffset = default)
+    // 生成一个预制体放到格子上
+    private GameObject Spawn(GameObject prefab, string slotName, int r, int c, Vector3 extraOffset = default)
     {
-        if (checkOnly) neededSlots.Add(slotName);
+        if (flag) s1.Add(slotName);
 
         if (prefab == null)
         {
-            emptySlots.Add(slotName);
-            return;
+            s2.Add(slotName);
+            return null;
         }
 
-        if (checkOnly) return;
+        if (flag) return null;
 
-        GameObject go = Instantiate(prefab, mapRoot);
+        GameObject go = Instantiate(prefab, root2);
         go.transform.localPosition = CellToLocal(r, c) + extraOffset;
         go.name = $"{prefab.name} ({r},{c})";
+        return go;
+    }
+
+    // 设置豆子（排序、碰撞体、Pellet 组件）
+    private void SetupItem(GameObject go, bool isPower)
+    {
+        if (go == null) return;
+
+        foreach (var sr in go.GetComponentsInChildren<SpriteRenderer>())
+            sr.sortingOrder = itemSortingOrder;
+
+        var pellet = go.GetComponent<Pellet>();
+        if (pellet == null) pellet = go.AddComponent<Pellet>();
+        pellet.isPowerPellet = isPower;
+
+        var col = go.GetComponent<CircleCollider2D>();
+        if (col == null) col = go.AddComponent<CircleCollider2D>();
+        col.isTrigger = true;
+        col.radius = 0.2f;
+    }
+
+    // Cells are Vector2Int(column, row). Row 0 is the top row, column 0 the far left.
+
+    private bool[,] pacWalkable;   // Walkable for PacStudent: corridors and tunnels, never the ghost house or its gates
+    private bool[,] ghostHouse;    // Ghost spawn area: inside the house plus its gates
+
+    // ---- 给吃豆人和鬼用的公开接口 ----
+    public int Rows { get { EnsureInit(); return rows; } }
+    public int Cols { get { EnsureInit(); return cols; } }
+
+    public void EnsureInit()
+    {
+        if (map == null) Init();
+    }
+
+    // 生成游戏用的格子数据（哪里能走、哪里是鬼屋）
+    private void BuildGameplayGrid()
+    {
+        // Flood fill again, this time with the ghost gate treated as a wall
+        pacWalkable = new bool[rows, cols];
+        var queue = new Queue<Vector2Int>();
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++)
+                if (map[r, c] == Pellet || map[r, c] == PowerPellet)
+                {
+                    pacWalkable[r, c] = true;
+                    queue.Enqueue(new Vector2Int(c, r));
+                }
+
+        while (queue.Count > 0)
+        {
+            Vector2Int p = queue.Dequeue();
+            for (int d = 0; d < 4; d++)
+            {
+                int nr = p.y + DRow[d], nc = p.x + DCol[d];
+                if (!InBounds(nr, nc) || pacWalkable[nr, nc]) continue;
+                int v = map[nr, nc];
+                if (v != Empty && v != Pellet && v != PowerPellet) continue;
+                pacWalkable[nr, nc] = true;
+                queue.Enqueue(new Vector2Int(nc, nr));
+            }
+        }
+
+        // Ghost house = the gates + every empty cell that can only be reached through a gate
+        ghostHouse = new bool[rows, cols];
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++)
+                if (map[r, c] == GhostGate) FillHouse(r, c);
+    }
+
+    // 标记鬼屋格子
+    private void FillHouse(int r, int c)
+    {
+        if (!InBounds(r, c) || ghostHouse[r, c] || pacWalkable[r, c]) return;
+        int v = map[r, c];
+        if (v != GhostGate && v != Empty) return;
+        ghostHouse[r, c] = true;
+        for (int d = 0; d < 4; d++) FillHouse(r + DRow[d], c + DCol[d]);
+    }
+
+    public bool InBounds(Vector2Int cell) { EnsureInit(); return InBounds(cell.y, cell.x); }
+
+    public bool IsWalkable(Vector2Int cell) { EnsureInit(); return InBounds(cell.y, cell.x) && pacWalkable[cell.y, cell.x]; }
+
+    public bool IsGhostHouse(Vector2Int cell) { EnsureInit(); return InBounds(cell.y, cell.x) && ghostHouse[cell.y, cell.x]; }
+
+    public bool IsTunnelEnd(Vector2Int cell) => IsWalkable(cell) && (cell.x == 0 || cell.x == Cols - 1);
+
+    // 格子坐标 <-> 世界坐标
+    public Vector3 CellToWorld(Vector2Int cell)
+    {
+        EnsureInit();
+        return transform.TransformPoint(CellToLocal(cell.y, cell.x));
+    }
+
+    public Vector2Int WorldToCell(Vector3 world)
+    {
+        EnsureInit();
+        Vector3 local = transform.InverseTransformPoint(world) - mapOffset;
+        float x = local.x, down = useXZPlane ? -local.z : -local.y;
+        if (centerMap)
+        {
+            x += (cols - 1) * cellSize * 0.5f;
+            down += (rows - 1) * cellSize * 0.5f;
+        }
+        return new Vector2Int(Mathf.RoundToInt(x / cellSize), Mathf.RoundToInt(down / cellSize));
+    }
+
+    public Vector3 MapCenter
+    {
+        get
+        {
+            EnsureInit();
+            return (CellToWorld(new Vector2Int(0, 0)) + CellToWorld(new Vector2Int(cols - 1, rows - 1))) * 0.5f;
+        }
+    }
+
+    // 地图尺寸
+    public Vector2 MapSize { get { EnsureInit(); return new Vector2(cols * cellSize, rows * cellSize); } }
+
+    // 鬼离开鬼屋的出口
+    public Vector2Int GetHouseExit(bool top, Vector2Int from)
+    {
+        EnsureInit();
+        Vector2Int best = from;
+        float bestDist = float.MaxValue;
+        for (int r = 0; r < rows; r++)
+            for (int c = 0; c < cols; c++)
+            {
+                if (map[r, c] != GhostGate) continue;
+                int outR = top ? r - 1 : r + 1;
+                if (!InBounds(outR, c) || !pacWalkable[outR, c]) continue;
+                var exit = new Vector2Int(c, outR);
+                float d = (exit - from).sqrMagnitude;
+                if (d < bestDist) { bestDist = d; best = exit; }
+            }
+        return best;
+    }
+
+    // 地图四个角（4 号鬼用）
+    public Vector2Int GetCornerCell(int corner)
+    {
+        EnsureInit();
+        Vector2Int target = corner switch
+        {
+            0 => new Vector2Int(0, 0),
+            1 => new Vector2Int(cols - 1, 0),
+            2 => new Vector2Int(cols - 1, rows - 1),
+            _ => new Vector2Int(0, rows - 1),
+        };
+        Vector2Int best = target;
+        float bestDist = float.MaxValue;
+        for (int r = 0; r < rows; r++)
+            for (int c = 1; c < cols - 1; c++)
+            {
+                if (!pacWalkable[r, c]) continue;
+                float d = (new Vector2Int(c, r) - target).sqrMagnitude;
+                if (d < bestDist) { bestDist = d; best = new Vector2Int(c, r); }
+            }
+        return best;
     }
 }
