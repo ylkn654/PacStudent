@@ -1,67 +1,40 @@
 using UnityEngine;
 
-/// <summary>
-/// Zooms the orthographic camera so the whole level fits on screen in any aspect ratio
-/// (16:9, 4:3, Free Aspect), and centres the camera on it.
-/// </summary>
+// 相机自适应：根据屏幕比例缩放相机，让整个地图能显示出来
 [RequireComponent(typeof(Camera))]
 public class CameraFit : MonoBehaviour
 {
-    [Tooltip("The level to fit: the LevelManager (generated map). Falls back to the hand-made map if empty")]
-    public Transform level;
-    [Tooltip("Extra world units kept around the level")]
-    public float margin = 0.5f;
+    [Tooltip("Extra world units above and below the level")]
+    public float verticalMargin = 0.5f;
+    [Tooltip("World units kept free on each side of the level for the HUD")]
+    public float sideSpace = 6.5f;
 
-    private Camera cam;
-    private float lastAspect;
-    private Bounds lastBounds;
+    private Camera c;
+    float a_old;
 
-    private void Awake()
+    private void Awake() { c = GetComponent<Camera>(); }
+
+    // 屏幕比例变了才重新计算
+    void LateUpdate()
     {
-        cam = GetComponent<Camera>();
-        cam.orthographic = true;
+        if (Mathf.Approximately(c.aspect, a_old)) return;
+        a_old = c.aspect;
+        Fit();
     }
 
-    private void LateUpdate()
+    public void Fit()
     {
-        // The generated map appears after Start, and the window can be resized, so keep checking
-        if (!TryGetLevelBounds(out Bounds b)) return;
-        if (Mathf.Approximately(cam.aspect, lastAspect) && b == lastBounds) return;
-        lastAspect = cam.aspect;
-        lastBounds = b;
-        Fit(b);
-    }
+        LevelGenerator lg = LevelGenerator.Instance;
+        if (lg == null) lg = FindAnyObjectByType<LevelGenerator>();
+        if (lg == null) { return; }
+        if (c == null) c = GetComponent<Camera>();
+        if (c == null) return;
+        if (c.aspect <= 0f) return; // TODO??
 
-    private void Fit(Bounds b)
-    {
-        if (cam.aspect <= 0f) return;   // window minimised
-
-        // Big enough for the level height and for the level width at this aspect ratio
-        float byHeight = b.extents.y + margin;
-        float byWidth = (b.extents.x + margin) / cam.aspect;
-        cam.orthographicSize = Mathf.Max(byHeight, byWidth);
-        transform.position = new Vector3(b.center.x, b.center.y, transform.position.z);
-    }
-
-    private bool TryGetLevelBounds(out Bounds bounds)
-    {
-        bounds = default;
-        Transform root = level;
-        if (root == null || root.GetComponentInChildren<SpriteRenderer>() == null)
-        {
-            GameObject manual = GameObject.Find("ManualMap");
-            if (manual != null) root = manual.transform;
-        }
-        if (root == null) return false;
-
-        bool found = false;
-        foreach (var r in root.GetComponentsInChildren<Renderer>())
-        {
-            // Map tiles only: sprites and tilemaps (the hand-made map uses both)
-            if (!(r is SpriteRenderer) && !(r is UnityEngine.Tilemaps.TilemapRenderer)) continue;
-            if (!found) { bounds = r.bounds; found = true; }
-            else bounds.Encapsulate(r.bounds);
-        }
-        return found;
+        // 按高度和宽度各算一次，取较大的那个
+        var v = lg.MapSize;
+        float tmp1 = v.y * 0.5f + verticalMargin, tmp2 = (v.x * 0.5f + sideSpace) / c.aspect;
+        c.orthographicSize = tmp1 > tmp2 ? tmp1 : tmp2;
+        transform.position = new Vector3(lg.MapCenter.x, lg.MapCenter.y, transform.position.z);
     }
 }

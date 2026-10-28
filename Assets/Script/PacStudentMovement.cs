@@ -1,88 +1,58 @@
 using UnityEngine;
 
+// 吃豆人沿固定的几个点来回走（演示用）
 public class PacStudentMovement : MonoBehaviour
 {
-    private Vector3[] waypoints = new Vector3[]
+    // 路径点
+    private Vector3[] wp = new Vector3[]
     {
-        new Vector3(-0.5f, 6.5f, -1.5f),
-        new Vector3(-5.5f, 6.5f, -1.5f),
+        new Vector3(-0.5f, 6.5f, -1.5f), new Vector3(-5.5f, 6.5f, -1.5f),
         new Vector3(-5.5f, 10.5f, -1.5f),
         new Vector3(-0.5f, 10.5f, -1.5f)
     };
 
     public float moveSpeed = 3f;
 
-    [Header("Audio")]
-    [Tooltip("Plays the movement sound on loop while PacStudent is moving")]
-    public AudioSource moveAudio;
-    public AudioClip moveClip;
-
-    private Animator animator;
-    private int currentTargetIndex = 0;
-    private float moveProgress = 0f;
-    
-    private Vector3 startPos;
-    private Vector3 targetPos;
+    Animator anim;
+    int idx = 0;
+    float prog = 0f;
+    Vector3 a, b;
 
     void Start()
     {
-        animator = GetComponent<Animator>();
-
-        transform.position = waypoints[0];
-        currentTargetIndex = 1;
-        SetNewTarget();
-
-        // PacStudent never stops in this scene, so the movement sound loops the whole time
-        if (moveAudio == null) moveAudio = GetComponent<AudioSource>();
-        if (moveAudio != null)
-        {
-            if (moveClip != null) moveAudio.clip = moveClip;
-            moveAudio.loop = true;
-            if (moveAudio.clip != null) moveAudio.Play();
-        }
+        anim = GetComponent<Animator>();
+        if (wp == null || wp.Length < 2) { Debug.LogWarning("[PacStudentMovement] Needs at least two waypoints.", this); enabled = false; return; }
+        transform.position = wp[0];
+        idx = 1;
+        Next();
     }
 
+    // 向当前目标点移动，到了就换下一个
     void Update()
     {
-        float distance = Vector3.Distance(startPos, targetPos);
-
-
-        moveProgress += (moveSpeed / distance) * Time.deltaTime;
-        
-        transform.position = Vector3.Lerp(startPos, targetPos, moveProgress);
-        
-        if (moveProgress >= 1f)
+        if (wp == null || wp.Length < 2) return;
+        float dist = Vector3.Distance(a, b);
+        if (dist <= Mathf.Epsilon) prog = 1f;
+        else prog += (Mathf.Max(moveSpeed, 0.01f) / dist) * Time.deltaTime;
+        transform.position = Vector3.Lerp(a, b, prog);
+        if (prog >= 1f)
         {
-            transform.position = targetPos;
-            
-            currentTargetIndex = (currentTargetIndex + 1) % waypoints.Length;
-            SetNewTarget();
+            transform.position = b;
+            idx = (idx + 1) % wp.Length;
+            Next();
         }
     }
 
-    private void SetNewTarget()
+    // 设置下一个目标点，并更新动画朝向
+    void Next()
     {
-        startPos = transform.position;
-        targetPos = waypoints[currentTargetIndex];
-        moveProgress = 0f;
-        
-        UpdateAnimationDirection();
-    }
-
-    private void UpdateAnimationDirection()
-    {
-        if (animator == null) return;
-        Vector3 direction = (targetPos - startPos).normalized;
-        
-        if (Mathf.Abs(direction.x) > Mathf.Abs(direction.y))
-        {
-            if (direction.x > 0) animator.SetInteger("Direction", 1);
-            else animator.SetInteger("Direction", 3);
-        }
-        else
-        {
-            if (direction.y > 0) animator.SetInteger("Direction", 0);
-            else animator.SetInteger("Direction", 2);
-        }
+        a = transform.position;
+        b = wp[idx];
+        prog = 0f;
+        if (anim == null) return;
+        Vector3 dd = (b - a).normalized;
+        // 0 up 1 right 2 down 3 left
+        if (Mathf.Abs(dd.x) > Mathf.Abs(dd.y)) anim.SetInteger("Direction", dd.x > 0 ? 1 : 3);
+        else anim.SetInteger("Direction", dd.y > 0 ? 0 : 2);
     }
 }
