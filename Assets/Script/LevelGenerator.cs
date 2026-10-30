@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 
-// 关卡生成器：根据 levelMap 数组生成墙、路、豆子，并提供格子坐标查询给其他脚本
+// level generator: builds walls, roads and pellets from levelMap, and answers grid queries for other scripts
 public class LevelGenerator : MonoBehaviour
 {
 
-    // 一组按方向区分的预制体（直墙 / 拐角）
+    // set of prefabs per direction (straight / corner)
     [Serializable]
     public class DirectionalPrefabs
     {
@@ -66,7 +66,7 @@ public class LevelGenerator : MonoBehaviour
         [Tooltip("┘ Bottom-right corner, joins the bottom and right walls")] public GameObject WallSE;
     }
 
-    // 原始地图数据（开启 mirrorMap 时会镜像成完整地图）
+    // original map data (mirrored into the full map when mirrorMap is on)
     private readonly int[,] levelMap =
     {
         {1,2,2,2,2,2,2,2,2,2,2,2,2,7},
@@ -86,7 +86,7 @@ public class LevelGenerator : MonoBehaviour
         {0,0,0,0,0,0,5,0,0,0,4,0,0,0},
     };
 
-    // 地图里每个数字代表的含义
+    // what each number in the map means
     private const int Empty = 0, OuterCorner = 1, OuterWall = 2, InnerCorner = 3, InnerWall = 4,
                       Pellet = 5, PowerPellet = 6, TJunction = 7, GhostGate = 8;
 
@@ -133,10 +133,21 @@ public class LevelGenerator : MonoBehaviour
     [SerializeField] private bool smartRiverShape = true;
     [SerializeField] private bool generateOnStart = true;
 
+    [Header("Random map (Level 2)")]
+    [Tooltip("On: ignore levelMap and build a random 29x29 map with RandomMapGenerator")]
+    [SerializeField] private bool useRandomMap = false;
+    [Tooltip("0 = a different map every time; any other number always gives the same map")]
+    [SerializeField] private int randomSeed = 0;
+    [Range(0f, 1f)] [SerializeField] private float rotateChance = 0.5f;
+    [Range(0f, 1f)] [SerializeField] private float thirdExitChance = 0.5f;
+
+    /// <summary>Random map only: true if the last map was built by 90° rotation (tunnels on all four sides).</summary>
+    public bool RandomMapRotated { get; private set; }
+
     [Header("Sorting")]
     [SerializeField] private int itemSortingOrder = 2;
 
-    // 运行时数据
+    // runtime data
     private int[,] map;         // Full map after mirroring
     private int rows, cols;
     private bool[,] wk;   // Walkable cells inside the outer walls
@@ -146,7 +157,7 @@ public class LevelGenerator : MonoBehaviour
     private readonly SortedSet<string> s2 = new SortedSet<string>();
 
     // Direction order is always N S E W
-    // 方向：上 下 右 左
+    // directions: up down right left
     private const int DirN = 0, DirS = 1, DirE = 2, DirW = 3;
     private static readonly int[] DRow = { -1, 1, 0, 0 };
     private static readonly int[] DCol = { 0, 0, 1, -1 };
@@ -154,7 +165,7 @@ public class LevelGenerator : MonoBehaviour
 
     public static LevelGenerator Instance { get; private set; }
 
-    // 初始化单例，开局生成地图
+    // set up the singleton, build the map at start
     private void Awake()
     {
         Instance = this;
@@ -177,7 +188,7 @@ public class LevelGenerator : MonoBehaviour
     }
 
     [ContextMenu("Generate Map")]
-    // 生成整张地图
+    // build the whole map
     public void Generate()
     {
         flag = false;
@@ -191,7 +202,7 @@ public class LevelGenerator : MonoBehaviour
     }
 
     [ContextMenu("Check Prefab Slots")]
-    // 只检查预制体有没有拖全，不生成
+    // only check if all prefabs are assigned, dont build
     public void CheckPrefabSlots()
     {
         flag = true;
@@ -208,7 +219,7 @@ public class LevelGenerator : MonoBehaviour
             Debug.Log("[LevelGenerator] All used slots are assigned.");
     }
 
-    // 准备地图数据和可走区域
+    // prepare map data and walkable area
     private void Init()
     {
         map = BuildFullMap();
@@ -218,9 +229,18 @@ public class LevelGenerator : MonoBehaviour
         BuildGameplayGrid();
     }
 
-    // 把原始地图镜像成完整地图
+    // mirror the original map into the full map
     private int[,] BuildFullMap()
     {
+        if (useRandomMap)
+        {
+            var rng = randomSeed == 0 ? new System.Random() : new System.Random(randomSeed);
+            var res = RandomMapGenerator.Generate(rng, rotateChance, thirdExitChance);
+            RandomMapRotated = res.rotated;
+            Debug.Log($"[LevelGenerator] Random map: {(res.rotated ? "rotated" : "mirrored")}, {res.exits} exits");
+            return res.map;
+        }
+
         int qRows = levelMap.GetLength(0);
         int qCols = levelMap.GetLength(1);
 
@@ -243,7 +263,7 @@ public class LevelGenerator : MonoBehaviour
         return full;
     }
 
-    // 逐格生成
+    // build cell by cell
     private void BuildAll()
     {
         for (int r = 0; r < rows; r++)
@@ -251,7 +271,7 @@ public class LevelGenerator : MonoBehaviour
                 BuildCell(r, c);
     }
 
-    // 根据格子类型生成对应物体
+    // spawn the right object for this cell type
     private void BuildCell(int r, int c)
     {
         int v = map[r, c];
@@ -289,14 +309,14 @@ public class LevelGenerator : MonoBehaviour
         }
     }
 
-    // 生成路面
+    // spawn road
     private void SpawnRoad(int r, int c)
     {
         string key = Suffix(GetLinks(r, c, IsRoad));
         Spawn(road.Get(key), "Road / " + key, r, c);
     }
 
-    // 生成内墙（河道）
+    // spawn inner wall (river)
     private void SpawnRiver(int r, int c, bool isCorner)
     {
         bool[] links = GetLinks(r, c, IsRiver);
@@ -321,7 +341,7 @@ public class LevelGenerator : MonoBehaviour
         Spawn(river.Get(key), "River / " + key, r, c);
     }
 
-    // 生成外墙
+    // spawn outer wall
     private void SpawnOuterWall(int r, int c, bool isCorner)
     {
         bool[] links = GetLinks(r, c, IsOuter);
@@ -386,13 +406,13 @@ public class LevelGenerator : MonoBehaviour
         }
     }
 
-    // 这个数字能不能走
+    // can this number be walked on
     private bool IsPassableValue(int v)
     {
         return v == Empty || v == Pellet || v == PowerPellet || (v == GhostGate && gateIsPassable);
     }
 
-    // 从有豆子的格子开始洪水填充，算出外墙以内能走的格子
+    // flood fill from the pellet cells to find walkable cells inside the outer walls
     private void FloodFillWalkable()
     {
         wk = new bool[rows, cols];
@@ -420,7 +440,7 @@ public class LevelGenerator : MonoBehaviour
         }
     }
 
-    // ---- 判断格子类型的小工具 ----
+    // ---- small helpers for cell types ----
     private bool InBounds(int r, int c) => r >= 0 && r < rows && c >= 0 && c < cols;
     private bool WalkableAt(int r, int c) => InBounds(r, c) && wk[r, c];
 
@@ -438,7 +458,7 @@ public class LevelGenerator : MonoBehaviour
         return v == OuterCorner || v == OuterWall || v == TJunction;
     }
 
-    // 看四个方向上哪些格子是同类，用来选墙的形状
+    // which of the four neighbours are the same kind, used to pick the wall shape
     private bool[] GetLinks(int r, int c, Func<int, int, bool> sameKind)
     {
         var links = new bool[4];
@@ -450,7 +470,7 @@ public class LevelGenerator : MonoBehaviour
         return links;
     }
 
-    // 根据连接方向得到预制体名字的后缀
+    // prefab name suffix from the connected sides
     private static string Suffix(bool[] links)
     {
         var sb = new StringBuilder();
@@ -501,7 +521,7 @@ public class LevelGenerator : MonoBehaviour
         return InBounds(r, c) && !sameKind(r, c);
     }
 
-    // 创建放地图物体的父节点
+    // create the parent object for the map
     private void PrepareRoot()
     {
         Transform old = transform.Find("GeneratedMap");
@@ -515,7 +535,7 @@ public class LevelGenerator : MonoBehaviour
         root2.SetParent(transform, false);
     }
 
-    // 格子坐标转本地坐标
+    // cell to local position
     private Vector3 CellToLocal(int r, int c)
     {
         // Row 0 is at the top, column 0 is at the far left
@@ -536,7 +556,7 @@ public class LevelGenerator : MonoBehaviour
         return pos + mapOffset;
     }
 
-    // 生成一个预制体放到格子上
+    // spawn one prefab on a cell
     private GameObject Spawn(GameObject prefab, string slotName, int r, int c, Vector3 extraOffset = default)
     {
         if (flag) s1.Add(slotName);
@@ -555,7 +575,7 @@ public class LevelGenerator : MonoBehaviour
         return go;
     }
 
-    // 设置豆子（排序、碰撞体、Pellet 组件）
+    // set up a pellet (sorting, collider, Pellet component)
     private void SetupItem(GameObject go, bool isPower)
     {
         if (go == null) return;
@@ -578,16 +598,30 @@ public class LevelGenerator : MonoBehaviour
     private bool[,] pacWalkable;   // Walkable for PacStudent: corridors and tunnels, never the ghost house or its gates
     private bool[,] ghostHouse;    // Ghost spawn area: inside the house plus its gates
 
-    // ---- 给吃豆人和鬼用的公开接口 ----
-    public int Rows { get { EnsureInit(); return rows; } }
-    public int Cols { get { EnsureInit(); return cols; } }
+    // ---- public API for pac and ghosts ----
+    public int Rows
+    {
+        get
+        {
+            EnsureInit();
+            return rows;
+        }
+    }
+    public int Cols
+    {
+        get
+        {
+            EnsureInit();
+            return cols;
+        }
+    }
 
     public void EnsureInit()
     {
         if (map == null) Init();
     }
 
-    // 生成游戏用的格子数据（哪里能走、哪里是鬼屋）
+    // build gameplay grid data (walkable cells, ghost house)
     private void BuildGameplayGrid()
     {
         // Flood fill again, this time with the ghost gate treated as a wall
@@ -622,7 +656,7 @@ public class LevelGenerator : MonoBehaviour
                 if (map[r, c] == GhostGate) FillHouse(r, c);
     }
 
-    // 标记鬼屋格子
+    // mark ghost house cells
     private void FillHouse(int r, int c)
     {
         if (!InBounds(r, c) || ghostHouse[r, c] || pacWalkable[r, c]) return;
@@ -632,15 +666,28 @@ public class LevelGenerator : MonoBehaviour
         for (int d = 0; d < 4; d++) FillHouse(r + DRow[d], c + DCol[d]);
     }
 
-    public bool InBounds(Vector2Int cell) { EnsureInit(); return InBounds(cell.y, cell.x); }
+    public bool InBounds(Vector2Int cell)
+    {
+        EnsureInit();
+        return InBounds(cell.y, cell.x);
+    }
 
-    public bool IsWalkable(Vector2Int cell) { EnsureInit(); return InBounds(cell.y, cell.x) && pacWalkable[cell.y, cell.x]; }
+    public bool IsWalkable(Vector2Int cell)
+    {
+        EnsureInit();
+        return InBounds(cell.y, cell.x) && pacWalkable[cell.y, cell.x];
+    }
 
-    public bool IsGhostHouse(Vector2Int cell) { EnsureInit(); return InBounds(cell.y, cell.x) && ghostHouse[cell.y, cell.x]; }
+    public bool IsGhostHouse(Vector2Int cell)
+    {
+        EnsureInit();
+        return InBounds(cell.y, cell.x) && ghostHouse[cell.y, cell.x];
+    }
 
-    public bool IsTunnelEnd(Vector2Int cell) => IsWalkable(cell) && (cell.x == 0 || cell.x == Cols - 1);
+    public bool IsTunnelEnd(Vector2Int cell) =>
+        IsWalkable(cell) && (cell.x == 0 || cell.x == Cols - 1 || cell.y == 0 || cell.y == Rows - 1);
 
-    // 格子坐标 <-> 世界坐标
+    // cell <-> world position
     public Vector3 CellToWorld(Vector2Int cell)
     {
         EnsureInit();
@@ -669,10 +716,17 @@ public class LevelGenerator : MonoBehaviour
         }
     }
 
-    // 地图尺寸
-    public Vector2 MapSize { get { EnsureInit(); return new Vector2(cols * cellSize, rows * cellSize); } }
+    // map size
+    public Vector2 MapSize
+    {
+        get
+        {
+            EnsureInit();
+            return new Vector2(cols * cellSize, rows * cellSize);
+        }
+    }
 
-    // 鬼离开鬼屋的出口
+    // exit cell for ghosts leaving the house
     public Vector2Int GetHouseExit(bool top, Vector2Int from)
     {
         EnsureInit();
@@ -686,12 +740,16 @@ public class LevelGenerator : MonoBehaviour
                 if (!InBounds(outR, c) || !pacWalkable[outR, c]) continue;
                 var exit = new Vector2Int(c, outR);
                 float d = (exit - from).sqrMagnitude;
-                if (d < bestDist) { bestDist = d; best = exit; }
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = exit;
+                }
             }
         return best;
     }
 
-    // 地图四个角（4 号鬼用）
+    // the four map corners (used by ghost 4)
     public Vector2Int GetCornerCell(int corner)
     {
         EnsureInit();
@@ -709,7 +767,11 @@ public class LevelGenerator : MonoBehaviour
             {
                 if (!pacWalkable[r, c]) continue;
                 float d = (new Vector2Int(c, r) - target).sqrMagnitude;
-                if (d < bestDist) { bestDist = d; best = new Vector2Int(c, r); }
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = new Vector2Int(c, r);
+                }
             }
         return best;
     }

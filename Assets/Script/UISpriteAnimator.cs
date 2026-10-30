@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-// UI 图片帧动画（开始界面的角色），可以上下浮动
+// UI sprite frame anim (start screen characters), can bob up and down
 [RequireComponent(typeof(Image))]
 public class UISpriteAnimator : MonoBehaviour
 {
@@ -11,7 +11,9 @@ public class UISpriteAnimator : MonoBehaviour
     public float bobHeight = 0f;
     public float bobSpeed = 3f;
 
-    Image img; RectTransform rt; Vector2 p0;
+    Image img;
+    RectTransform rt;
+    Vector2 p0;
 
     void Awake()
     {
@@ -20,7 +22,7 @@ public class UISpriteAnimator : MonoBehaviour
         p0 = rt.anchoredPosition;
     }
 
-    // 切换帧 + 浮动
+    // switch frame + bob
     void Update()
     {
         if (img != null && frames != null && frames.Length > 0 && framesPerSecond > 0f)

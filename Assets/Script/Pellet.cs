@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 豆子（普通豆 / 能量豆），并统计剩余数量
+// pellet (normal / power), also counts how many are left
 public class Pellet : MonoBehaviour
 {
     public bool isPowerPellet;

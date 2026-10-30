@@ -1,9 +1,9 @@
 using UnityEngine;
 
-// 吃豆人沿固定的几个点来回走（演示用）
+// pac walks around a few fixed points (demo)
 public class PacStudentMovement : MonoBehaviour
 {
-    // 路径点
+    // waypoints
     private Vector3[] wp = new Vector3[]
     {
         new Vector3(-0.5f, 6.5f, -1.5f), new Vector3(-5.5f, 6.5f, -1.5f),
@@ -21,13 +21,18 @@ public class PacStudentMovement : MonoBehaviour
     void Start()
     {
         anim = GetComponent<Animator>();
-        if (wp == null || wp.Length < 2) { Debug.LogWarning("[PacStudentMovement] Needs at least two waypoints.", this); enabled = false; return; }
+        if (wp == null || wp.Length < 2)
+        {
+            Debug.LogWarning("[PacStudentMovement] Needs at least two waypoints.", this);
+            enabled = false;
+            return;
+        }
         transform.position = wp[0];
         idx = 1;
         Next();
     }
 
-    // 向当前目标点移动，到了就换下一个
+    // move to the current target, go to the next one when reached
     void Update()
     {
         if (wp == null || wp.Length < 2) return;
@@ -43,7 +48,7 @@ public class PacStudentMovement : MonoBehaviour
         }
     }
 
-    // 设置下一个目标点，并更新动画朝向
+    // set the next target and update the anim direction
     void Next()
     {
         a = transform.position;

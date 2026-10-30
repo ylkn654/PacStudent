@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// 开始界面：选关按钮，显示每关最高分和最佳时间
+// start screen: level buttons, shows best score and time for each level
 public class StartSceneManager : MonoBehaviour
 {
     public Button level1Button;
@@ -24,23 +24,27 @@ public class StartSceneManager : MonoBehaviour
 
     void Start()
     {
-        // 显示记录
+        // show records
         if (level1ScoreText != null) level1ScoreText.text = "High Score  " + SaveData.GetHighScore(1).ToString("000000");
         if (level1TimeText != null) level1TimeText.text = "Best Time  " + SaveData.FormatTime(SaveData.GetBestTime(1));
         if (level2ScoreText != null) level2ScoreText.text = "High Score  " + SaveData.GetHighScore(2).ToString("000000");
         if (level2TimeText != null) level2TimeText.text = "Best Time  " + SaveData.FormatTime(SaveData.GetBestTime(2));
 
-        // 绑定按钮
+        // hook up buttons
         if (level1Button != null) level1Button.onClick.AddListener(() => Go(level1Scene));
         else Debug.LogWarning("[StartScene] Level 1 button is not assigned.", this);
-        if (level2Button != null) level2Button.onClick.AddListener(() => { Go(level2Scene); });
+        if (level2Button != null) level2Button.onClick.AddListener(() => Go(level2Scene));
     }
 
-    // 加载关卡（稍微延迟一下让点击音效播完）
+    // load level (small delay so the click sound can finish)
     void Go(string s)
     {
         if (busy || string.IsNullOrEmpty(s)) return;
-        if (!Application.CanStreamedLevelBeLoaded(s)) { Debug.LogWarning($"[StartScene] Scene '{s}' is not in Build Settings.", this); return; }
+        if (!Application.CanStreamedLevelBeLoaded(s))
+        {
+            Debug.LogWarning($"[StartScene] Scene '{s}' is not in Build Settings.", this);
+            return;
+        }
         busy = true;
         StartCoroutine(Wait(s));
     }

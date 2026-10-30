@@ -11,5 +11,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/PacStudent.unity
     guid: abd13f20dd74fb949b0488b30b403411
+  - enabled: 1
+    path: Assets/Scenes/Level2.unity
+    guid: 218ed6ad114bb2648a580e048a0d0951
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

@@ -3,7 +3,7 @@ using UnityEngine;
 
 public enum GhostState { Normal = 0, Scared = 1, Recovering = 2, Dead = 3 }
 
-// 鬼的移动和 AI：每走完一格按编号（1-4）选下一个方向
+// ghost movement and AI: after every cell picks the next direction by ghost number (1-4)
 public class GhostController : MonoBehaviour
 {
     [Tooltip("1 = runs away, 2 = chases, 3 = random, 4 = circles the outer wall clockwise")]
@@ -16,7 +16,8 @@ public class GhostController : MonoBehaviour
     [Tooltip("Scared, Recovering and Dead speed, as a fraction of the normal speed")]
     public float slowFactor = 0.5f;
 
-    Vector2Int sc; Vector3 sp;
+    Vector2Int sc;
+    Vector3 sp;
     Vector2Int c, pc;
     GridDir md = GridDir.None;
 
@@ -61,17 +62,19 @@ public class GhostController : MonoBehaviour
         ResetToStart();
     }
 
-    // 回到鬼屋起点，普通状态
+    // back to the ghost house start, normal state
     public void ResetToStart()
     {
         if (!init) return;
         transform.position = sp;
-        c = sc; pc = sc;
+        c = sc;
+        pc = sc;
         lerp = false;
         md = GridDir.Down;
-        ct = -1; cs = 0;
+        ct = -1;
+        cs = 0;
         SetState(GhostState.Normal);
-        if (animator != null) animator.SetInteger("Dir", 1);
+        if (animator != null) animator.SetInteger("Dir", (int)GridDir.Down);
     }
 
     public void SetState(GhostState state)
@@ -80,12 +83,14 @@ public class GhostController : MonoBehaviour
         if (animator != null) animator.SetInteger("State", (int)state);
     }
 
-    // 被吃掉：直线飞回鬼屋
+    // eaten: fly straight back to the house
     public void Die()
     {
         if (State == GhostState.Dead) return;
         SetState(GhostState.Dead);
-        f = transform.position; to = sp; t = 0f;
+        f = transform.position;
+        to = sp;
+        t = 0f;
         dist = Vector3.Distance(f, to);
         lerp = true;
     }
@@ -99,7 +104,7 @@ public class GhostController : MonoBehaviour
         }
         if (animator != null) animator.speed = 1f;
 
-        // 移动中（害怕/死亡时速度变慢）
+        // moving (slower when scared / dead)
         if (lerp)
         {
             float spd = State == GhostState.Normal ? normalSpeed : normalSpeed * slowFactor;
@@ -111,11 +116,13 @@ public class GhostController : MonoBehaviour
             transform.position = to;
             lerp = false;
 
-            // 死亡的鬼到家了：复活
+            // dead ghost reached home: respawn
             if (State == GhostState.Dead)
             {
-                c = sc; pc = sc;
-                ct = -1; cs = 0;
+                c = sc;
+                pc = sc;
+                ct = -1;
+                cs = 0;
                 if (GameManager.Instance != null) GameManager.Instance.OnGhostRespawned(this);
                 else SetState(GhostState.Normal);
                 return;
@@ -125,13 +132,15 @@ public class GhostController : MonoBehaviour
         if (State == GhostState.Dead)
         {
             // shouldnt happen
-            f = transform.position; to = sp; t = 0f;
+            f = transform.position;
+            to = sp;
+            t = 0f;
             dist = Vector3.Distance(f, to);
             lerp = true;
             return;
         }
 
-        // 选下一个方向，开始走下一格
+        // pick next dir and start moving to the next cell
         GridDir n = Pick();
         if (n != GridDir.None)
         {
@@ -147,7 +156,7 @@ public class GhostController : MonoBehaviour
         }
     }
 
-    // 能不能走进这个格子（鬼屋里的鬼可以穿过鬼屋墙出去）
+    // can it step into this cell (ghosts inside the house can pass the house walls to get out)
     bool Ok(Vector2Int n)
     {
         if (!lvl.InBounds(n)) return false;
@@ -155,7 +164,7 @@ public class GhostController : MonoBehaviour
         return lvl.IsGhostHouse(c) && lvl.IsGhostHouse(n);
     }
 
-    // 选方向：先找能走的方向（尽量不回头），再按鬼的类型决定
+    // pick dir: find valid dirs (try not to turn back), then decide by ghost type
     GridDir Pick()
     {
         var list = new List<GridDir>();
@@ -164,7 +173,8 @@ public class GhostController : MonoBehaviour
         {
             Vector2Int nn = c + d.ToCellOffset();
             if (!Ok(nn)) continue;
-            if (nn == pc) back = d; else list.Add(d);
+            if (nn == pc) back = d;
+            else list.Add(d);
         }
         if (list.Count == 0 && back != GridDir.None) list.Add(back);
 
@@ -175,18 +185,18 @@ public class GhostController : MonoBehaviour
             return GridDir.None;
         }
 
-        // 在鬼屋里：先出去（1、3 号往上，2、4 号往下）
+        // inside the house: get out first (1, 3 go up, 2, 4 go down)
         if (lvl.IsGhostHouse(c))
             return Near(list, lvl.GetHouseExit(ghostNumber == 1 || ghostNumber == 3, c));
 
         if (State == GhostState.Scared || State == GhostState.Recovering) return Dist(list, true);
 
-        // 1 号躲开，2 号追击，3 号随机
+        // 1 runs away, 2 chases, 3 random
         if (ghostNumber == 1) return Dist(list, true);
         else if (ghostNumber == 2) return Dist(list, false);
         else if (ghostNumber == 3) return list[Random.Range(0, list.Count)];
 
-        // 4 号：顺时针绕着外墙的四个角走
+        // 4: goes round the four outer corners clockwise
         if (ct < 0 || ct > 3)
         {
             ct = 0;
@@ -194,15 +204,23 @@ public class GhostController : MonoBehaviour
             for (int i = 0; i < 4; i++)
             {
                 float dd = (lvl.GetCornerCell(i) - c).sqrMagnitude;
-                if (dd < b) { b = dd; ct = i; }
+                if (dd < b)
+                {
+                    b = dd;
+                    ct = i;
+                }
             }
         }
         cs++;
-        if (c == lvl.GetCornerCell(ct) || cs > 150) { ct = (ct + 1) % 4; cs = 0; }
+        if (c == lvl.GetCornerCell(ct) || cs > 150)
+        {
+            ct = (ct + 1) % 4;
+            cs = 0;
+        }
         return Near(list, lvl.GetCornerCell(ct));
     }
 
-    // away = true 选离吃豆人不变近的方向，false 选不变远的方向
+    // away = true picks dirs that dont get closer to pac, false picks dirs that dont get further
     GridDir Dist(List<GridDir> o, bool away)
     {
         if (GameManager.Instance == null) return o[Random.Range(0, o.Count)];
@@ -221,7 +239,7 @@ public class GhostController : MonoBehaviour
         return tmp[Random.Range(0, tmp.Count)];
     }
 
-    // 选离目标格子最近的方向
+    // dir that gets closest to the target cell
     GridDir Near(List<GridDir> o, Vector2Int target)
     {
         if (o == null || o.Count == 0) return GridDir.None;
@@ -230,7 +248,11 @@ public class GhostController : MonoBehaviour
         foreach (GridDir d in o)
         {
             float x = (c + d.ToCellOffset() - target).sqrMagnitude;
-            if (x < best) { best = x; r = d; }
+            if (x < best)
+            {
+                best = x;
+                r = d;
+            }
         }
         return r;
     }
