@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-// 按钮反馈：鼠标移上去放大，按下缩小，并播放音效
+// button feedback: grows on hover, shrinks on press, plays sounds
 public class ButtonFeedback : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
 {
     public AudioSource audioSource;
@@ -11,23 +11,25 @@ public class ButtonFeedback : MonoBehaviour, IPointerEnterHandler, IPointerExitH
     public float pressScale = 0.92f;
     public float animSpeed = 12f;
 
-    Vector3 s0; private float tgt = 1f;
+    Vector3 s0;
+    private float tgt = 1f;
     bool h;
 
     private void Awake() { s0 = transform.localScale; }
 
     void OnDisable()
     {
-        h = false; tgt = 1f;
+        h = false;
+        tgt = 1f;
         transform.localScale = s0;
     }
 
     private void Update() {
-        // 每帧平滑缩放到目标大小
+        // ease towards target scale every frame
         transform.localScale = Vector3.Lerp(transform.localScale, s0 * tgt, 1f - Mathf.Exp(-animSpeed * Time.unscaledDeltaTime));
     }
 
-    // 鼠标进入 / 离开 / 按下 / 松开
+    // pointer enter / exit / down / up
     public void OnPointerEnter(PointerEventData e)
     {
         var sel = GetComponent<UnityEngine.UI.Selectable>();
@@ -37,7 +39,11 @@ public class ButtonFeedback : MonoBehaviour, IPointerEnterHandler, IPointerExitH
         if (audioSource != null && hoverClip != null) audioSource.PlayOneShot(hoverClip);
     }
 
-    public void OnPointerExit(PointerEventData e) { h = false; tgt = 1f; }
+    public void OnPointerExit(PointerEventData e)
+    {
+        h = false;
+        tgt = 1f;
+    }
 
     public void OnPointerDown(PointerEventData e)
     {
@@ -51,6 +57,7 @@ public class ButtonFeedback : MonoBehaviour, IPointerEnterHandler, IPointerExitH
 
     public void OnPointerUp(PointerEventData e)
     {
-        if (h == true) tgt = hoverScale; else tgt = 1f;
+        if (h == true) tgt = hoverScale;
+        else tgt = 1f;
     }
 }

@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-// 樱桃生成器：每隔几秒在屏幕外生成一个樱桃，让它穿过地图中心
+// cherry spawner: every few seconds spawns a cherry off screen that crosses the map centre
 public class CherryController : MonoBehaviour
 {
     public Sprite cherrySprite;
@@ -22,7 +22,7 @@ public class CherryController : MonoBehaviour
         StartCoroutine(Loop());
     }
 
-    // 循环：等待 -> 生成 -> 等上一个消失
+    // loop: wait -> spawn -> wait for the last one to go
     IEnumerator Loop()
     {
         while (true)
@@ -34,14 +34,14 @@ public class CherryController : MonoBehaviour
         }
     }
 
-    // 生成一个樱桃，失败返回 false
+    // spawn one cherry, false if it failed
     private bool DoIt()
     {
         if (cam == null) cam = Camera.main;
         if (cam == null || LevelGenerator.Instance == null) return false;
         Vector3 c = LevelGenerator.Instance.MapCenter;
 
-        // 计算屏幕外的随机起点，终点在对面
+        // random start point off screen, end point on the opposite side
         float hh = 10f;
         if (cam.orthographic) hh = cam.orthographicSize;
         float hw = hh * cam.aspect;
@@ -50,17 +50,19 @@ public class CherryController : MonoBehaviour
         Vector3 s = new Vector3(cam.transform.position.x, cam.transform.position.y, c.z) + new Vector3(Mathf.Cos(ang), Mathf.Sin(ang), 0f) * r;
         Vector3 e = c + (c - s);
 
-        // 创建樱桃物体（图片、碰撞体、刚体）
+        // build the cherry object (sprite, collider, rigidbody)
         GameObject obj = new GameObject("BonusCherry");
         obj.transform.position = s;
         obj.transform.localScale = Vector3.one * (scale > 0f ? scale : 1f);
 
         SpriteRenderer sr = obj.AddComponent<SpriteRenderer>();
-        sr.sprite = cherrySprite; sr.sortingOrder = sortingOrder;
+        sr.sprite = cherrySprite;
+        sr.sortingOrder = sortingOrder;
         sr.maskInteraction = SpriteMaskInteraction.VisibleInsideMask;
 
         var cc = obj.AddComponent<CircleCollider2D>();
-        cc.isTrigger = true; cc.radius = 0.35f;
+        cc.isTrigger = true;
+        cc.radius = 0.35f;
         obj.AddComponent<Rigidbody2D>().bodyType = RigidbodyType2D.Kinematic;
 
         cur = obj.AddComponent<Cherry>();

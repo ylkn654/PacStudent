@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-// 吃豆人控制：读键盘输入，按格子移动，处理撞墙、隧道、死亡和碰撞
+// pac controller: reads keyboard, moves cell by cell, handles walls, tunnels, death and collisions
 public class PacStudentController : MonoBehaviour
 {
     [Header("Movement")]
@@ -31,10 +31,10 @@ public class PacStudentController : MonoBehaviour
     [Tooltip("How long the death animation / sound plays before respawning")]
     public float deathDuration = 2f;
 
-    // 输入：inA = 最后按的方向，inB = 当前在走的方向
-    GridDir inA = GridDir.None, inB = GridDir.None;
+    // input: lastInput = last key pressed, currentInput = dir currently moving
+    GridDir lastInput = GridDir.None, currentInput = GridDir.None;
 
-    // 移动状态
+    // movement state
     bool moving;
     Vector3 from, to;
     float k, dur;
@@ -73,7 +73,12 @@ public class PacStudentController : MonoBehaviour
 
     void Start()
     {
-        if (L == null) { Debug.LogError("[PacStudent] No LevelGenerator in the scene. PacStudent is disabled.", this); enabled = false; return; }
+        if (L == null)
+        {
+            Debug.LogError("[PacStudent] No LevelGenerator in the scene. PacStudent is disabled.", this);
+            enabled = false;
+            return;
+        }
 
         c0 = L.WorldToCell(transform.position);
         if (!L.IsWalkable(c0)) Debug.LogWarning($"[PacStudent] Start cell {c0} is not walkable. Check PacStudent's position in the scene.", this);
@@ -81,7 +86,7 @@ public class PacStudentController : MonoBehaviour
         ResetToStart();
     }
 
-    // 回到起点，朝右，等待输入
+    // back to start, facing right, waiting for input
     public void ResetToStart()
     {
         StopAllCoroutines();
@@ -89,12 +94,14 @@ public class PacStudentController : MonoBehaviour
         c = c0;
         if (L != null) transform.position = L.CellToWorld(c);
         moving = false;
-        inA = GridDir.None; inB = GridDir.None; md = GridDir.None;
+        lastInput = GridDir.None;
+        currentInput = GridDir.None;
+        md = GridDir.None;
         bumped = false;
 
         if (animator != null) animator.SetBool("Dead", false);
         FacingDir = GridDir.Right;
-        if (animator != null) animator.SetInteger("Dir", 3);
+        if (animator != null) animator.SetInteger("Dir", (int)GridDir.Right);
         Fx(false);
     }
 
@@ -102,14 +109,14 @@ public class PacStudentController : MonoBehaviour
     {
         if (IsDead || !ready || L == null) return;
 
-        // 读取 WASD
+        // read WASD
         var kb = Keyboard.current;
         if (kb != null)
         {
-            if (kb.wKey.wasPressedThisFrame) inA = GridDir.Up;
-            else if (kb.aKey.wasPressedThisFrame) inA = GridDir.Left;
-            else if (kb.sKey.wasPressedThisFrame) inA = GridDir.Down;
-            else if (kb.dKey.wasPressedThisFrame) inA = GridDir.Right;
+            if (kb.wKey.wasPressedThisFrame) lastInput = GridDir.Up;
+            else if (kb.aKey.wasPressedThisFrame) lastInput = GridDir.Left;
+            else if (kb.sKey.wasPressedThisFrame) lastInput = GridDir.Down;
+            else if (kb.dKey.wasPressedThisFrame) lastInput = GridDir.Right;
         }
 
         if (!ControlEnabled)
@@ -118,7 +125,7 @@ public class PacStudentController : MonoBehaviour
             return;
         }
 
-        // 正在移动就继续移动到下一格
+        // if moving keep moving to the next cell
         if (moving)
         {
             k +=dur > 0f ? Time.deltaTime / dur : 1f;
@@ -128,15 +135,19 @@ public class PacStudentController : MonoBehaviour
             moving = false;
         }
 
-        // 到格子了：先试最后按的方向，不行再试当前方向
-        if (inA != GridDir.None && Step(inA)) { inB = inA; return; }
-        if (inB != GridDir.None && Step(inB)) return;
+        // reached a cell: try lastInput first, then currentInput
+        if (lastInput != GridDir.None && Step(lastInput))
+        {
+            currentInput = lastInput;
+            return;
+        }
+        if (currentInput != GridDir.None && Step(currentInput)) return;
 
-        // 都走不了：撞墙，播粒子和音效
+        // cant move either way: hit wall, play particles and sound
         if (md != GridDir.None && !bumped)
         {
             bumped = true;
-            GridDir dd = inB != GridDir.None ? inB : md;
+            GridDir dd = currentInput != GridDir.None ? currentInput : md;
             if (wallHitParticles != null)
             {
                 wallHitParticles.transform.position = transform.position + dd.ToWorld() * 0.5f;
@@ -148,16 +159,16 @@ public class PacStudentController : MonoBehaviour
         Fx(false);
     }
 
-    // 尝试往某个方向走一格，是墙就返回 false
+    // try to step one cell in this dir, false if its a wall
     private bool Step(GridDir d)
     {
         if (d == GridDir.None) return false;
         Vector2Int n = c + d.ToCellOffset();
 
-        // 左右隧道：走出边界就传送到另一边
+        // tunnel: step off the edge and come out the other side (left/right, or top/bottom on rotated maps)
         if (!L.InBounds(n) && L.IsTunnelEnd(c))
         {
-            var w = new Vector2Int(n.x < 0 ? L.Cols - 1 : 0, c.y);
+            var w = new Vector2Int((n.x % L.Cols + L.Cols) % L.Cols, (n.y % L.Rows + L.Rows) % L.Rows);
             if (!L.IsWalkable(w)) return false;
             c = w;
             transform.position = L.CellToWorld(c);
@@ -178,15 +189,19 @@ public class PacStudentController : MonoBehaviour
         FacingDir = d;
         if (animator != null) animator.SetInteger("Dir", (int)d);
 
-        // 下一格有豆子就播吃豆音效
+        // pellet in the next cell -> eating sound
         bool hasP = false;
         foreach (var hit in Physics2D.OverlapPointAll(to))
-            if (hit != null && hit.GetComponent<Pellet>() != null) { hasP = true; break; }
+            if (hit != null && hit.GetComponent<Pellet>() != null)
+            {
+                hasP = true;
+                break;
+            }
         Fx(true, hasP);
         return true;
     }
 
-    // 移动时的动画、灰尘粒子和脚步音效
+    // walk anim, dust particles and footstep sound
     void Fx(bool on, bool eat = false)
     {
         if (animator != null) animator.speed = (on || IsDead) ? 1f : 0f;
@@ -199,14 +214,22 @@ public class PacStudentController : MonoBehaviour
         }
 
         if (moveSource == null) return;
-        if (!on) { if (moveSource.isPlaying) moveSource.Stop(); return; }
+        if (!on)
+        {
+            if (moveSource.isPlaying) moveSource.Stop();
+            return;
+        }
 
         AudioClip a = moveEmptyClip;
         if (eat && moveEatingClip != null) a = moveEatingClip;
         if (a == null) a = moveEatingClip;
         if (a == null) return;
 
-        if (moveSource.clip != a) { moveSource.clip = a; moveSource.Play(); }
+        if (moveSource.clip != a)
+        {
+            moveSource.clip = a;
+            moveSource.Play();
+        }
         else if (!moveSource.isPlaying) moveSource.Play();
     }
 
@@ -217,7 +240,7 @@ public class PacStudentController : MonoBehaviour
         if (s != null) s.PlayOneShot(a);
     }
 
-    // 游戏结束时停住
+    // stop on game over
     public void Freeze()
     {
         ControlEnabled = false;
@@ -225,7 +248,7 @@ public class PacStudentController : MonoBehaviour
         Fx(false);
     }
 
-    // 死亡：播动画、粒子和音效，结束后回调
+    // die: anim, particles and sound, then callback
     public void Die(System.Action onFinished)
     {
         if (!IsDead)
@@ -234,8 +257,16 @@ public class PacStudentController : MonoBehaviour
             ControlEnabled = false;
             moving = false;
             Fx(false);
-            if (animator != null) { animator.speed = 1f; animator.SetBool("Dead", true); }
-            if (deathParticles != null) { deathParticles.transform.position = transform.position; deathParticles.Play(); }
+            if (animator != null)
+            {
+                animator.speed = 1f;
+                animator.SetBool("Dead", true);
+            }
+            if (deathParticles != null)
+            {
+                deathParticles.transform.position = transform.position;
+                deathParticles.Play();
+            }
             Snd(deathClip);
         }
         StartCoroutine(W(onFinished));
@@ -247,14 +278,22 @@ public class PacStudentController : MonoBehaviour
         if (cb != null) cb();
     }
 
-    // 碰到豆子 / 樱桃 / 鬼
+    // hit pellet / cherry / ghost
     void OnTriggerEnter2D(Collider2D other)
     {
         if (other == null) return;
         if (GameManager.Instance == null || IsDead || !GameManager.Instance.IsPlaying) return;
 
-        if (other.GetComponent<Pellet>() != null) { GameManager.Instance.EatPellet(other.GetComponent<Pellet>()); return; }
-        if (other.GetComponent<Cherry>() != null) { GameManager.Instance.EatCherry(other.GetComponent<Cherry>()); return; }
+        if (other.GetComponent<Pellet>() != null)
+        {
+            GameManager.Instance.EatPellet(other.GetComponent<Pellet>());
+            return;
+        }
+        if (other.GetComponent<Cherry>() != null)
+        {
+            GameManager.Instance.EatCherry(other.GetComponent<Cherry>());
+            return;
+        }
         var g = other.GetComponentInParent<GhostController>();
         if (g != null) GameManager.Instance.OnGhostTouched(g);
     }

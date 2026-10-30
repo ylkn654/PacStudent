@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 奖励樱桃：从起点直线移动到终点，到达后销毁
+// bonus cherry: moves in a straight line from start to end, then destroyed
 public class Cherry : MonoBehaviour
 {
     [Tooltip("Fail-safe: the cherry is always removed after this many seconds")]
@@ -10,22 +10,31 @@ public class Cherry : MonoBehaviour
     private float x, d;
     float timer;
 
-    // 设置起点、终点和速度
+    // set start, end and speed
     public void Launch(Vector3 start, Vector3 end, float speed)
     {
-        p1 = start; p2 = end;
+        p1 = start;
+        p2 = end;
         if (speed > 0f) d = Vector3.Distance(start, end) / speed;
         else d = 0f;
         x = 0;
         transform.position = start;
     }
 
-    // 移动樱桃，超时或到达终点就销毁
+    // move the cherry, destroy on timeout or when it reaches the end
     void Update()
     {
         timer = timer + Time.deltaTime;
-        if (d <= 0f) { Destroy(gameObject); return; }
-        if (timer > Mathf.Max(maxLifetime, d * 2f)) { Destroy(gameObject); return; }
+        if (d <= 0f)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        if (timer > Mathf.Max(maxLifetime, d * 2f))
+        {
+            Destroy(gameObject);
+            return;
+        }
 
         x += Time.deltaTime / d;
         transform.position = Vector3.Lerp(p1, p2, x);
@@ -33,7 +42,7 @@ public class Cherry : MonoBehaviour
             Destroy(gameObject);
     }
 
-    // 被吃掉
+    // eaten
     public void Eaten()
     {
         if (GetComponent<Collider2D>() != null) GetComponent<Collider2D>().enabled = false;

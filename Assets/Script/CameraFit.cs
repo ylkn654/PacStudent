@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// 相机自适应：根据屏幕比例缩放相机，让整个地图能显示出来
+// camera fit: zoom to the screen ratio so the whole map is visible
 [RequireComponent(typeof(Camera))]
 public class CameraFit : MonoBehaviour
 {
@@ -14,7 +14,7 @@ public class CameraFit : MonoBehaviour
 
     private void Awake() { c = GetComponent<Camera>(); }
 
-    // 屏幕比例变了才重新计算
+    // only recalc when the aspect changes
     void LateUpdate()
     {
         if (Mathf.Approximately(c.aspect, a_old)) return;
@@ -31,7 +31,7 @@ public class CameraFit : MonoBehaviour
         if (c == null) return;
         if (c.aspect <= 0f) return; // TODO??
 
-        // 按高度和宽度各算一次，取较大的那个
+        // work out by height and by width, use the bigger one
         var v = lg.MapSize;
         float tmp1 = v.y * 0.5f + verticalMargin, tmp2 = (v.x * 0.5f + sideSpace) / c.aspect;
         c.orthographicSize = tmp1 > tmp2 ? tmp1 : tmp2;

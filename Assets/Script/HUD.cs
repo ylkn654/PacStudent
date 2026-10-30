@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-// 游戏界面：生命、分数、计时、提示文字和退出按钮
+// in game HUD: lives, score, timer, big text and exit button
 public class HUD : MonoBehaviour
 {
     public Image[] lifeIcons;
@@ -21,10 +21,13 @@ public class HUD : MonoBehaviour
     void Awake()
     {
         if (exitButton != null) exitButton.onClick.AddListener(Back);
-        SetScore(0); SetTime(0f); SetGhostTimer(0); SetBigText(null);
+        SetScore(0);
+        SetTime(0f);
+        SetGhostTimer(0);
+        SetBigText(null);
     }
 
-    // 退出按钮：回到开始场景
+    // exit button: back to the start scene
     private void Back()
     {
         if (!string.IsNullOrEmpty(startSceneName) && Application.CanStreamedLevelBeLoaded(startSceneName)) SceneManager.LoadScene(startSceneName);
@@ -34,11 +37,18 @@ public class HUD : MonoBehaviour
         }
     }
 
-    // 下面是更新各个界面元素
+    // setters for each HUD element below
     public void SetLives(int lives)
     {
         if (lifeIcons == null) return;
-        for (int i = 0; i < lifeIcons.Length; i++) { if (lifeIcons[i] != null) { if (i < lives) lifeIcons[i].enabled = true; else lifeIcons[i].enabled = false; } }
+        for (int i = 0; i < lifeIcons.Length; i++)
+        {
+            if (lifeIcons[i] != null)
+            {
+                if (i < lives) lifeIcons[i].enabled = true;
+                else lifeIcons[i].enabled = false;
+            }
+        }
     }
 
     public void SetScore(int score) { if (scoreText != null) scoreText.text = Mathf.Max(0, score).ToString("000000"); }
@@ -63,7 +73,7 @@ public class HUD : MonoBehaviour
         if (levelNameText != null) levelNameText.text = name != null ? name : "";
     }
 
-    // 屏幕中间的大字（倒计时 / Game Over），传 null 隐藏
+    // big text in the middle (countdown / Game Over), null hides it
     public void SetBigText(string text)
     {
         bool b = string.IsNullOrEmpty(text) == false;

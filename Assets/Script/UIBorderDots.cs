@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-// 开始界面的边框动画：一圈沿边缘移动的小点
+// start screen border anim: a ring of dots moving round the edge
 [RequireComponent(typeof(RectTransform))]
 public class UIBorderDots : MonoBehaviour
 {
@@ -23,22 +23,24 @@ public class UIBorderDots : MonoBehaviour
     void Start()
     {
         r = (RectTransform)transform;
-        // 创建所有小点
+        // create all the dots
         for (int i = 0; i < dotCount; i++)
         {
             var g = new GameObject("Dot" + i, typeof(RectTransform), typeof(Image));
             g.transform.SetParent(transform, false);
             g.GetComponent<Image>().sprite = dotSprite;
             g.GetComponent<Image>().raycastTarget = false;
-            if (i % 2 == 0) g.GetComponent<Image>().color = colorA; else g.GetComponent<Image>().color = colorB;
+            if (i % 2 == 0) g.GetComponent<Image>().color = colorA;
+            else g.GetComponent<Image>().color = colorB;
             RectTransform t = (RectTransform)g.transform;
-            t.anchorMin = new Vector2(0.5f, 0.5f); t.anchorMax = new Vector2(0.5f, 0.5f);
+            t.anchorMin = new Vector2(0.5f, 0.5f);
+            t.anchorMax = new Vector2(0.5f, 0.5f);
             t.sizeDelta = Vector2.one * dotSize;
             list.Add(t);
         }
     }
 
-    // 每帧移动小点，大点会一闪一闪
+    // move the dots every frame, big dots pulse
     void Update()
     {
         o = (o + speed * Time.unscaledDeltaTime) % 1f;
@@ -54,7 +56,7 @@ public class UIBorderDots : MonoBehaviour
         }
     }
 
-    // 根据进度 t 算出边框上的位置（从左上角顺时针）
+    // position on the border from progress t (clockwise from top left)
     static Vector2 Calc(float t, float w, float h)
     {
         float d = t * (2f * (w + h));

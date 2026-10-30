@@ -1,13 +1,13 @@
 using UnityEngine;
 
-// 四个方向，吃豆人和鬼共用
+// four directions, shared by pac and ghosts
 public enum GridDir { None = -1, Up = 0, Down = 1, Left = 2, Right = 3 }
 
 public static class GridDirExt
 {
     public static readonly GridDir[] All = { GridDir.Up, GridDir.Down, GridDir.Left, GridDir.Right };
 
-    // 方向转成格子偏移（行向下增加）
+    // direction to cell offset (row goes down)
     public static Vector2Int ToCellOffset(this GridDir d)
     {
         if (d == GridDir.Up) return new Vector2Int(0, -1);
@@ -17,10 +17,14 @@ public static class GridDirExt
         return Vector2Int.zero;
     }
 
-    // 方向转成世界坐标方向
-    public static Vector3 ToWorld(this GridDir d) { var o = d.ToCellOffset(); return new Vector3(o.x, -o.y, 0f); }
+    // direction to world direction
+    public static Vector3 ToWorld(this GridDir d)
+    {
+        var o = d.ToCellOffset();
+        return new Vector3(o.x, -o.y, 0f);
+    }
 
-    // 反方向
+    // opposite
     public static GridDir Opposite(this GridDir d)
     {
         switch (d)
